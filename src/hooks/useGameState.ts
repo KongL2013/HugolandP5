@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { GameState, PlayerStats, Inventory, Enemy, Weapon, Armor, ChestReward, Research, Achievement, CollectionBook, KnowledgeStreak, GameMode, Statistics } from '../types/game';
-import { generateWeapon, generateArmor, generateEnemy, calculateResearchBonus } from '../utils/gameUtils';
+import { GameState, PlayerStats, Inventory, Enemy, Weapon, Armor, ChestReward, Research, Achievement, CollectionBook, KnowledgeStreak, GameMode, Statistics, PowerSkills } from '../types/game';
+import { generateWeapon, generateArmor, generateEnemy, calculateResearchBonus, calculateResearchCost } from '../utils/gameUtils';
 import { checkAchievements, initializeAchievements } from '../utils/achievements';
 import AsyncStorage from '../utils/storage';
 
@@ -69,6 +69,23 @@ const initialStatistics: Statistics = {
   sessionStartTime: new Date(),
 };
 
+const initialPowerSkills: PowerSkills = {
+  rage: {
+    attackCount: 0,
+    isActive: false,
+    damageBonus: 0,
+  },
+  poison: {
+    attackCount: 0,
+    isActive: false,
+  },
+  health: {
+    isTriggered: false,
+    isActive: false,
+    attacksRemaining: 0,
+  },
+};
+
 const initialGameState: GameState = {
   coins: 100,
   gems: 0,
@@ -85,6 +102,7 @@ const initialGameState: GameState = {
   knowledgeStreak: initialKnowledgeStreak,
   gameMode: initialGameMode,
   statistics: initialStatistics,
+  powerSkills: initialPowerSkills,
 };
 
 export const useGameState = () => {
@@ -137,6 +155,7 @@ export const useGameState = () => {
             },
             research: parsedState.research || initialResearch,
             isPremium: parsedState.isPremium || parsedState.zone >= 50,
+            powerSkills: parsedState.powerSkills || initialPowerSkills,
           });
         }
       } catch (error) {
@@ -486,7 +505,7 @@ export const useGameState = () => {
   }, []);
 
   const upgradeResearch = useCallback(() => {
-    const researchCost = 150;
+    const researchCost = calculateResearchCost(gameState.research.level, gameState.research.tier);
     setGameState(prev => {
       if (prev.coins < researchCost) return prev;
 
@@ -509,7 +528,7 @@ export const useGameState = () => {
     });
     updatePlayerStats();
     checkAndUnlockAchievements();
-  }, [updatePlayerStats, triggerVisualEffect, checkAndUnlockAchievements]);
+  }, [gameState.research.level, gameState.research.tier, updatePlayerStats, triggerVisualEffect, checkAndUnlockAchievements]);
 
   const openChest = useCallback((chestCost: number): ChestReward | null => {
     if (gameState.coins < chestCost) return null;
@@ -578,6 +597,7 @@ export const useGameState = () => {
         hp: prev.playerStats.maxHp // Always restore to full HP when starting combat
       },
       combatLog: [`You encounter a ${enemy.name} in Zone ${enemy.zone}!`],
+      powerSkills: initialPowerSkills, // Reset power skills for new combat
     }));
   }, [gameState.zone, gameState.gameMode.current]);
 
@@ -596,13 +616,86 @@ export const useGameState = () => {
       let newEnemyHp = prev.currentEnemy.hp;
       let combatEnded = false;
       let playerWon = false;
+      let newPowerSkills = { ...prev.powerSkills };
+      let newEnemy = { ...prev.currentEnemy };
 
       if (hit) {
-        const damage = Math.max(1, prev.playerStats.atk - prev.currentEnemy.def);
-        newEnemyHp = Math.max(0, prev.currentEnemy.hp - damage);
-        newCombatLog.push(`You deal ${damage} damage to the ${prev.currentEnemy.name}!`);
+        // Update power skill counters
+        newPowerSkills.rage.attackCount++;
+        newPowerSkills.poison.attackCount++;
+
+        let baseDamage = Math.max(1, prev.playerStats.atk - prev.currentEnemy.def);
+        let finalDamage = baseDamage;
+
+        // Check for RAGE skill activation
+        if (newPowerSkills.rage.attackCount >= 3) {
+          newPowerSkills.rage.attackCount = 0;
+          newPowerSkills.rage.isActive = true;
+          newPowerSkills.rage.damageBonus = Math.floor(Math.random() * 66) + 10; // 10-75%
+          finalDamage = Math.floor(baseDamage * (1 + newPowerSkills.rage.damageBonus / 100));
+          
+          // Restore 10% health
+          const healthRestore = Math.floor(prev.playerStats.maxHp * 0.1);
+          newPlayerHp = Math.min(prev.playerStats.maxHp, prev.playerStats.hp + healthRestore);
+          
+          newCombatLog.push(`🔥 RAGE activated! +${newPowerSkills.rage.damageBonus}% damage and +${healthRestore} HP!`);
+        }
+
+        // Check for POISON skill activation
+        if (newPowerSkills.poison.attackCount >= 5) {
+          newPowerSkills.poison.attackCount = 0;
+          newPowerSkills.poison.isActive = true;
+          newEnemy.isPoisoned = true;
+          newEnemy.poisonTurns = 3;
+          newCombatLog.push(`💀 POISON activated! Enemy is poisoned for 3 turns!`);
+        }
+
+        // Apply poison damage bonus if enemy is poisoned
+        if (newEnemy.isPoisoned) {
+          finalDamage = Math.floor(finalDamage * 1.2); // +20% damage
+        }
+
+        newEnemyHp = Math.max(0, prev.currentEnemy.hp - finalDamage);
         
-        triggerVisualEffect('text', { text: `-${damage}`, color: 'text-red-400' });
+        if (newPowerSkills.rage.isActive) {
+          newCombatLog.push(`You deal ${finalDamage} RAGE damage to the ${prev.currentEnemy.name}!`);
+          newPowerSkills.rage.isActive = false;
+        } else {
+          newCombatLog.push(`You deal ${finalDamage} damage to the ${prev.currentEnemy.name}!`);
+        }
+        
+        triggerVisualEffect('text', { text: `-${finalDamage}`, color: 'text-red-400' });
+
+        // Update poison turns
+        if (newEnemy.isPoisoned) {
+          newEnemy.poisonTurns = Math.max(0, newEnemy.poisonTurns - 1);
+          if (newEnemy.poisonTurns === 0) {
+            newEnemy.isPoisoned = false;
+            newCombatLog.push(`The poison wears off!`);
+          }
+        }
+
+        // Check for HEALTH skill activation
+        const hpPercentage = newPlayerHp / prev.playerStats.maxHp;
+        if (hpPercentage < 0.3 && !newPowerSkills.health.isTriggered) {
+          newPowerSkills.health.isTriggered = true;
+          newPowerSkills.health.isActive = true;
+          newPowerSkills.health.attacksRemaining = 3;
+          newCombatLog.push(`💚 HEALTH skill activated! You will heal after each attack for 3 turns!`);
+        }
+
+        // Apply health skill healing
+        if (newPowerSkills.health.isActive && newPowerSkills.health.attacksRemaining > 0) {
+          const healAmount = Math.floor(prev.playerStats.maxHp * 0.1);
+          newPlayerHp = Math.min(prev.playerStats.maxHp, newPlayerHp + healAmount);
+          newPowerSkills.health.attacksRemaining--;
+          newCombatLog.push(`💚 Health skill heals you for ${healAmount} HP!`);
+          
+          if (newPowerSkills.health.attacksRemaining === 0) {
+            newPowerSkills.health.isActive = false;
+            newCombatLog.push(`Health skill effect ends.`);
+          }
+        }
         
         if (newEnemyHp <= 0) {
           combatEnded = true;
@@ -664,6 +757,7 @@ export const useGameState = () => {
             currentEnemy: null,
             inCombat: false,
             combatLog: newCombatLog,
+            powerSkills: initialPowerSkills, // Reset power skills after combat
             statistics: {
               ...prev.statistics,
               zonesReached: Math.max(prev.statistics.zonesReached, newZone),
@@ -679,15 +773,17 @@ export const useGameState = () => {
             inCombat: false,
             combatLog: newCombatLog,
             playerStats: { ...prev.playerStats, hp: newPlayerHp },
+            powerSkills: initialPowerSkills, // Reset power skills after defeat
           };
         }
       }
 
       return {
         ...prev,
-        currentEnemy: { ...prev.currentEnemy, hp: newEnemyHp },
+        currentEnemy: { ...newEnemy, hp: newEnemyHp },
         playerStats: { ...prev.playerStats, hp: newPlayerHp },
         combatLog: newCombatLog,
+        powerSkills: newPowerSkills,
       };
     });
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Research as ResearchType } from '../types/game';
 import { Brain, TrendingUp, Star, Crown, Coins } from 'lucide-react';
-import { calculateResearchBonus } from '../utils/gameUtils';
+import { calculateResearchBonus, calculateResearchCost } from '../utils/gameUtils';
 
 interface ResearchProps {
   research: ResearchType;
@@ -11,7 +11,7 @@ interface ResearchProps {
 }
 
 export const Research: React.FC<ResearchProps> = ({ research, coins, onUpgradeResearch, isPremium }) => {
-  const researchCost = 150;
+  const researchCost = calculateResearchCost(research.level, research.tier);
   const currentBonus = calculateResearchBonus(research.level, research.tier);
   const nextBonus = calculateResearchBonus(research.level + 1, research.tier);
   const progressInTier = research.level % 10;
@@ -121,6 +121,9 @@ export const Research: React.FC<ResearchProps> = ({ research, coins, onUpgradeRe
             <p className="text-white font-semibold text-sm sm:text-base">Next Research Level</p>
             <p className="text-gray-300 text-xs sm:text-sm">
               Bonus: +{currentBonus}% → +{nextBonus}%
+            </p>
+            <p className="text-blue-300 text-xs">
+              Cost resets to 150 at new tier
             </p>
           </div>
           <div className="flex items-center gap-2 text-yellow-300">

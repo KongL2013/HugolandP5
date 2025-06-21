@@ -59,6 +59,7 @@ function App() {
           combatLog={gameState.combatLog}
           gameMode={gameState.gameMode}
           knowledgeStreak={gameState.knowledgeStreak}
+          powerSkills={gameState.powerSkills}
         />
       );
     }

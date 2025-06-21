@@ -99,10 +99,22 @@ export const generateArmor = (forceChroma = false): Armor => {
 
 export const generateEnemy = (zone: number): Enemy => {
   const name = enemyNames[Math.min(zone - 1, enemyNames.length - 1)];
-  // Made enemies much harder
-  const hp = 200 + (zone * 15); // Increased from zone * 2
-  const atk = 20 + (zone * 8); // Increased from zone * 5
-  const def = Math.floor(zone * 2); // Added defense scaling
+  
+  // Base stats
+  let hp = 200 + (zone * 15);
+  let atk = 20 + (zone * 8);
+  let def = Math.floor(zone * 2);
+  
+  // Double HP starting from zone 10
+  if (zone >= 10) {
+    hp *= 2;
+  }
+  
+  // Double ATK and DEF starting from zone 30
+  if (zone >= 30) {
+    atk *= 2;
+    def *= 2;
+  }
   
   return {
     name,
@@ -111,6 +123,8 @@ export const generateEnemy = (zone: number): Enemy => {
     atk,
     def,
     zone,
+    isPoisoned: false,
+    poisonTurns: 0,
   };
 };
 
@@ -151,4 +165,10 @@ export const calculateResearchBonus = (level: number, tier: number): number => {
   const baseBonus = level * 5; // 5% per level
   const tierBonus = tier * 15; // 15% per tier (every 10 levels)
   return baseBonus + tierBonus;
+};
+
+export const calculateResearchCost = (level: number, tier: number): number => {
+  // Base cost starts at 150, increases by 50 each level within a tier
+  const levelInTier = level % 10;
+  return 150 + (levelInTier * 50);
 };

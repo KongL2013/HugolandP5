@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Enemy } from '../types/game';
-import { Sword, Shield, Heart, Brain, Clock, Zap, Skull } from 'lucide-react';
+import { Enemy, PowerSkills } from '../types/game';
+import { Sword, Shield, Heart, Brain, Clock, Zap, Skull, Flame, Droplets, Plus } from 'lucide-react';
 import { TriviaQuestion, getQuestionByZone } from '../utils/triviaQuestions';
 
 interface CombatProps {
@@ -24,6 +24,7 @@ interface CombatProps {
     best: number;
     multiplier: number;
   };
+  powerSkills: PowerSkills;
 }
 
 export const Combat: React.FC<CombatProps> = ({ 
@@ -32,7 +33,8 @@ export const Combat: React.FC<CombatProps> = ({
   onAttack, 
   combatLog, 
   gameMode,
-  knowledgeStreak 
+  knowledgeStreak,
+  powerSkills 
 }) => {
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -161,6 +163,57 @@ export const Combat: React.FC<CombatProps> = ({
         </div>
       </div>
 
+      {/* Power Skills Status */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className={`p-2 rounded-lg border ${
+          powerSkills.rage.attackCount >= 2 ? 'border-red-500 bg-red-900/30' : 'border-gray-600 bg-gray-800/30'
+        }`}>
+          <div className="flex items-center gap-1 text-xs">
+            <Flame className="w-3 h-3 text-red-400" />
+            <span className="text-white font-semibold">RAGE</span>
+          </div>
+          <div className="text-xs text-gray-300">
+            {3 - powerSkills.rage.attackCount} attacks left
+          </div>
+          {powerSkills.rage.isActive && (
+            <div className="text-xs text-red-400 font-bold">ACTIVE!</div>
+          )}
+        </div>
+
+        <div className={`p-2 rounded-lg border ${
+          powerSkills.poison.attackCount >= 4 ? 'border-green-500 bg-green-900/30' : 'border-gray-600 bg-gray-800/30'
+        }`}>
+          <div className="flex items-center gap-1 text-xs">
+            <Droplets className="w-3 h-3 text-green-400" />
+            <span className="text-white font-semibold">POISON</span>
+          </div>
+          <div className="text-xs text-gray-300">
+            {5 - powerSkills.poison.attackCount} attacks left
+          </div>
+          {enemy.isPoisoned && (
+            <div className="text-xs text-green-400 font-bold">ENEMY POISONED!</div>
+          )}
+        </div>
+
+        <div className={`p-2 rounded-lg border ${
+          powerSkills.health.isActive ? 'border-blue-500 bg-blue-900/30' : 
+          powerSkills.health.isTriggered ? 'border-gray-500 bg-gray-800/30' : 'border-gray-600 bg-gray-800/30'
+        }`}>
+          <div className="flex items-center gap-1 text-xs">
+            <Plus className="w-3 h-3 text-blue-400" />
+            <span className="text-white font-semibold">HEALTH</span>
+          </div>
+          <div className="text-xs text-gray-300">
+            {powerSkills.health.isTriggered ? 'Used' : 'Ready at <30% HP'}
+          </div>
+          {powerSkills.health.isActive && (
+            <div className="text-xs text-blue-400 font-bold">
+              {powerSkills.health.attacksRemaining} heals left
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Health Bars */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
         <div className="bg-black/30 p-3 sm:p-4 rounded-lg">
@@ -191,6 +244,9 @@ export const Combat: React.FC<CombatProps> = ({
           <div className="flex items-center gap-2 mb-2">
             <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
             <span className="text-white font-semibold text-sm sm:text-base">{enemy.name}</span>
+            {enemy.isPoisoned && (
+              <Droplets className="w-4 h-4 text-green-400 animate-pulse" />
+            )}
           </div>
           <div className="w-full bg-gray-700 rounded-full h-2 sm:h-3">
             <div 
@@ -209,6 +265,11 @@ export const Combat: React.FC<CombatProps> = ({
               {enemy.def}
             </span>
           </div>
+          {enemy.isPoisoned && (
+            <p className="text-green-400 text-xs mt-1">
+              💀 Poisoned ({enemy.poisonTurns} turns)
+            </p>
+          )}
         </div>
       </div>
 

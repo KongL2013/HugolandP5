@@ -14,6 +14,7 @@ export interface GameState {
   knowledgeStreak: KnowledgeStreak;
   gameMode: GameMode;
   statistics: Statistics;
+  powerSkills: PowerSkills;
 }
 
 export interface PlayerStats {
@@ -68,6 +69,8 @@ export interface Enemy {
   atk: number;
   def: number;
   zone: number;
+  isPoisoned?: boolean;
+  poisonTurns?: number;
 }
 
 export interface ChestReward {
@@ -136,4 +139,21 @@ export interface Statistics {
     };
   };
   sessionStartTime: Date;
+}
+
+export interface PowerSkills {
+  rage: {
+    attackCount: number;
+    isActive: boolean;
+    damageBonus: number;
+  };
+  poison: {
+    attackCount: number;
+    isActive: boolean;
+  };
+  health: {
+    isTriggered: boolean;
+    isActive: boolean;
+    attacksRemaining: number;
+  };
 }
